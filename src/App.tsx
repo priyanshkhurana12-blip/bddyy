@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { StarryBackground } from './components/StarryBackground';
 import { LockStage } from './components/LockStage';
@@ -9,14 +9,48 @@ import { LoveLetterStage } from './components/LoveLetterStage';
 import { BalloonPopStage } from './components/BalloonPopStage';
 import { MemoriesStage } from './components/MemoriesStage';
 import { VideoStage } from './components/VideoStage';
+import { CustomizeModal } from './components/CustomizeModal';
 import { AnniversaryData, StageType } from './types/anniversary';
-import { loadAnniversaryData, saveAnniversaryData } from './utils/defaultData';
+import {
+  loadAnniversaryData,
+  saveAnniversaryData,
+  fetchServerAnniversaryData
+} from './utils/defaultData';
 import { sound } from './utils/audio';
 
 export default function App() {
   const [data, setData] = useState<AnniversaryData>(loadAnniversaryData);
   const [stage, setStage] = useState<StageType>('lock');
   const [musicPlaying, setMusicPlaying] = useState<boolean>(false);
+  const [isCustomizeOpen, setIsCustomizeOpen] = useState<boolean>(false);
+  const [customizeInitialTab, setCustomizeInitialTab] = useState<'all' | 'video' | 'memories'>('all');
+
+  // Auto-sync preview localStorage to server on mount, or fetch existing server data
+  useEffect(() => {
+    fetchServerAnniversaryData()
+      .then(serverData => {
+        if (serverData && (serverData.videoUrl || serverData.memories?.length)) {
+          console.log('✅ Loaded anniversary data from server disk');
+          setData(serverData);
+          return;
+        }
+
+        // Check if browser has custom data stored in preview session
+        const local = loadAnniversaryData();
+        const hasCustomVideo = !!(local.videoUrl && local.videoUrl.trim() !== '');
+        const hasCustomMemories = local.memories?.some(m => !m.src.includes('images.unsplash.com'));
+
+        if (hasCustomVideo || hasCustomMemories) {
+          console.log('🔄 Auto-syncing preview data to server disk so deployment uses it...');
+          saveAnniversaryData(local).then(() => {
+            console.log('✅ Auto-synced preview data to server!');
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Initial server fetch:', err);
+      });
+  }, []);
 
   // Sync music state with sound engine
   const handleToggleMusic = () => {
@@ -24,16 +58,21 @@ export default function App() {
     setMusicPlaying(isPlaying);
   };
 
-  const handleUpdateVideoUrl = (newUrl: string) => {
+  const handleUpdateVideoUrl = async (newUrl: string) => {
     const updated = { ...data, videoUrl: newUrl };
     setData(updated);
-    saveAnniversaryData(updated);
+    await saveAnniversaryData(updated);
   };
 
-  const handleUpdateMemories = (newMemories: typeof data.memories) => {
-    const updated = { ...data, memories: newMemories };
+  const handleSaveCustomData = async (updated: AnniversaryData): Promise<boolean> => {
     setData(updated);
-    saveAnniversaryData(updated);
+    const success = await saveAnniversaryData(updated);
+    return success;
+  };
+
+  const handleOpenCustomize = (tab: 'all' | 'video' | 'memories' = 'all') => {
+    setCustomizeInitialTab(tab);
+    setIsCustomizeOpen(true);
   };
 
   // Stage transitions
@@ -74,6 +113,10 @@ export default function App() {
     setStage('main');
   };
 
+  const hasCustomMedia =
+    (data.videoUrl && data.videoUrl.trim() !== '') ||
+    data.memories?.some(m => !m.src.includes('images.unsplash.com'));
+
   return (
     <div className="relative min-h-screen bg-[#0b0910] text-slate-100 flex flex-col justify-between selection:bg-amber-500/30 selection:text-amber-200">
       {/* Background Starry Sky & Glowing Particles */}
@@ -81,7 +124,7 @@ export default function App() {
 
       {/* Floating Top Nav Controls */}
       <header className="fixed top-4 inset-x-0 z-50 px-4 md:px-8 flex items-center justify-between pointer-events-none">
-        {/* Left: Romantic Watermark / Stage Indicator */}
+        {/* Left: Romantic Watermark & Quick Jump */}
         <div className="pointer-events-auto flex items-center gap-2">
           <div className="px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs text-amber-200/90 font-serif italic shadow-sm">
             For Kajal (Billu) ❤️
@@ -124,8 +167,21 @@ export default function App() {
           )}
         </div>
 
-        {/* Right: Music Toggle */}
+        {/* Right: Customization & Music Toggle */}
         <div className="pointer-events-auto flex items-center gap-2">
+          {/* Photos & Video Customize Trigger */}
+          <button
+            onClick={() => handleOpenCustomize('all')}
+            className="px-3.5 py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 backdrop-blur-md text-xs font-semibold text-amber-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+            title="Upload your photos & Drive video link"
+          >
+            <span>📸</span>
+            <span className="hidden sm:inline">Photos & Video</span>
+            {hasCustomMedia && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            )}
+          </button>
+
           {/* Music Button */}
           <button
             onClick={handleToggleMusic}
@@ -252,7 +308,7 @@ export default function App() {
                 memories={data.memories}
                 partnerName={data.partnerName}
                 onNext={handleMemoriesNext}
-                onUpdateMemories={handleUpdateMemories}
+                onOpenCustomize={() => handleOpenCustomize('memories')}
               />
             </motion.div>
           )}
@@ -271,13 +327,23 @@ export default function App() {
                 senderName={data.senderName}
                 onUpdateVideoUrl={handleUpdateVideoUrl}
                 onReplayAll={handleRestartJourney}
+                onOpenCustomize={() => handleOpenCustomize('video')}
               />
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {/* Discreet Footer Watermark matching demo */}
+      {/* Customize Photos & Drive Video Modal */}
+      <CustomizeModal
+        isOpen={isCustomizeOpen}
+        onClose={() => setIsCustomizeOpen(false)}
+        data={data}
+        onSave={handleSaveCustomData}
+        initialTab={customizeInitialTab}
+      />
+
+      {/* Discreet Footer Watermark */}
       <footer className="py-4 text-center text-[11px] text-slate-500/70 font-serif relative z-10 pointer-events-none">
         Handcrafted with infinite love ·
       </footer>

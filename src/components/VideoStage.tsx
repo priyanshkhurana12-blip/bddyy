@@ -9,6 +9,7 @@ interface VideoStageProps {
   senderName: string;
   onUpdateVideoUrl?: (newUrl: string) => void;
   onReplayAll?: () => void;
+  onOpenCustomize?: () => void;
 }
 
 // Convert various Google Drive link formats into an embeddable preview URL
@@ -54,161 +55,21 @@ export function formatVideoSource(url: string): { type: 'drive' | 'direct' | 'em
   return { type: 'direct', src: trimmed };
 }
 
-// Cinematic kinetic reel slides transcribed directly from Priyansh's video message for Kajal
-const REEL_SLIDES = [
-  {
-    prefix: 'Happy',
-    highlight: 'birthday',
-    suffix: 'Kajal',
-    highlightColor: 'text-amber-400',
-    duration: 3200
-  },
-  {
-    prefix: 'I pray to God you had a',
-    highlight: 'greatest',
-    suffix: 'year ahead.',
-    highlightColor: 'text-amber-400',
-    duration: 3800
-  },
-  {
-    prefix: "Bro, it's been",
-    highlight: '132 days.',
-    suffix: '',
-    highlightColor: 'text-amber-400',
-    duration: 3300
-  },
-  {
-    prefix: 'What a',
-    highlight: 'magical 132',
-    suffix: 'days.',
-    highlightColor: 'text-amber-400',
-    duration: 3300
-  },
-  {
-    prefix: 'I know both',
-    highlight: 'ups and down',
-    suffix: 'hua hai beech beech mein.',
-    highlightColor: 'text-rose-400',
-    duration: 3800
-  },
-  {
-    prefix: 'But bro, this time our',
-    highlight: 'bond is so strong',
-    suffix: '',
-    highlightColor: 'text-amber-400',
-    duration: 3600
-  },
-  {
-    prefix: 'We became each other',
-    highlight: 'counterparts',
-    suffix: '',
-    highlightColor: 'text-amber-400',
-    duration: 3400
-  },
-  {
-    prefix: 'We both share our',
-    highlight: 'daily life',
-    suffix: 'with each other',
-    highlightColor: 'text-amber-400',
-    duration: 3500
-  },
-  {
-    prefix: 'We both have a similar thinking and a great',
-    highlight: 'mutual understanding',
-    suffix: 'this time.',
-    highlightColor: 'text-amber-400',
-    duration: 4200
-  },
-  {
-    prefix: 'And bro, you are literally an',
-    highlight: 'amazing human',
-    suffix: 'being.',
-    highlightColor: 'text-amber-400',
-    duration: 3800
-  },
-  {
-    prefix: 'I always try to make you',
-    highlight: 'laugh and happy',
-    suffix: 'whenever you are sad.',
-    highlightColor: 'text-amber-400',
-    duration: 4200
-  },
-  {
-    prefix: 'Or haan, thank you for being such a good friend for all the random talks, laugh and',
-    highlight: 'memories.',
-    suffix: '',
-    highlightColor: 'text-rose-400',
-    duration: 4600
-  },
-  {
-    prefix: 'Mujhe nahi pata humara future mein kya hoga. Hum sath rahenge ya nahi...',
-    highlight: 'future mein',
-    suffix: '',
-    highlightColor: 'text-amber-400',
-    duration: 4400
-  },
-  {
-    prefix: 'But bro, I just want you to be a',
-    highlight: 'part of my life',
-    suffix: 'till my death bed.',
-    highlightColor: 'text-rose-400',
-    duration: 4600
-  },
-  {
-    prefix: 'I just want to enjoy every moment of life and',
-    highlight: 'travel the world',
-    suffix: 'with you',
-    highlightColor: 'text-amber-400',
-    duration: 4400
-  },
-  {
-    prefix: 'I was in fifth class when I saw you first time. It has been',
-    highlight: 'nine years',
-    suffix: '',
-    highlightColor: 'text-amber-400',
-    duration: 4600
-  },
-  {
-    prefix: 'Aur mere andar 9 salo se same feeling hai tere liye. Khatam hone ki jagah aur',
-    highlight: 'badhti ja rahi hai.',
-    suffix: '',
-    highlightColor: 'text-rose-400',
-    duration: 4800
-  },
-  {
-    prefix: 'At the end, enjoy your day! Once again,',
-    highlight: 'happiest birthday 🎂',
-    suffix: '',
-    highlightColor: 'text-amber-400',
-    duration: 4000
-  },
-  {
-    prefix: 'Stay happy, stay crazy, and please jyada mature hone ki koshish mat karna,',
-    highlight: 'tu aisi hi theek hai. ❤️',
-    suffix: '',
-    highlightColor: 'text-rose-400',
-    duration: 5200
-  }
-];
-
 export const VideoStage: React.FC<VideoStageProps> = ({
   videoUrl = '',
   partnerName,
   senderName,
   onUpdateVideoUrl,
-  onReplayAll
+  onReplayAll,
+  onOpenCustomize
 }) => {
   const [currentUrl, setCurrentUrl] = useState<string>(videoUrl);
   const [inputUrl, setInputUrl] = useState<string>(videoUrl);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isEditingInline, setIsEditingInline] = useState<boolean>(false);
+  const [savedNotice, setSavedNotice] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  // Kinetic Reel State
-  const [isReelPlaying, setIsReelPlaying] = useState<boolean>(false);
-  const [reelIndex, setReelIndex] = useState<number>(0);
-  const [isReelFinished, setIsReelFinished] = useState<boolean>(false);
-  const [showDriveInput, setShowDriveInput] = useState<boolean>(false);
 
   // Stop background synth music so video audio is clear
   useEffect(() => {
@@ -225,29 +86,6 @@ export const VideoStage: React.FC<VideoStageProps> = ({
 
   const videoSource = formatVideoSource(currentUrl);
 
-  // Kinetic Reel Timer logic
-  useEffect(() => {
-    if (!isReelPlaying || isReelFinished || videoSource.type !== 'empty') return;
-
-    const currentSlide = REEL_SLIDES[reelIndex];
-    const timer = setTimeout(() => {
-      if (reelIndex < REEL_SLIDES.length - 1) {
-        setReelIndex(prev => prev + 1);
-      } else {
-        setIsReelFinished(true);
-        setIsReelPlaying(false);
-        confetti({
-          particleCount: 80,
-          spread: 100,
-          origin: { y: 0.5 },
-          colors: ['#f43f5e', '#fbbf24', '#a855f7', '#38bdf8']
-        });
-      }
-    }, currentSlide?.duration || 3500);
-
-    return () => clearTimeout(timer);
-  }, [isReelPlaying, reelIndex, isReelFinished, videoSource.type]);
-
   // Initial celebration confetti when opening video
   useEffect(() => {
     confetti({
@@ -261,11 +99,13 @@ export const VideoStage: React.FC<VideoStageProps> = ({
   const handleSaveUrl = () => {
     const trimmed = inputUrl.trim();
     setCurrentUrl(trimmed);
+    setIsEditingInline(false);
     if (onUpdateVideoUrl) {
       onUpdateVideoUrl(trimmed);
     }
-    setShowDriveInput(false);
     sound.playMagicSparkle();
+    setSavedNotice(true);
+    setTimeout(() => setSavedNotice(false), 3500);
   };
 
   const handleTogglePlay = async () => {
@@ -281,24 +121,6 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         videoRef.current.pause();
         setIsPlaying(false);
       }
-    }
-  };
-
-  const handleToggleReelPlay = () => {
-    if (isReelFinished) {
-      setReelIndex(0);
-      setIsReelFinished(false);
-      setIsReelPlaying(true);
-      sound.startMusic();
-      return;
-    }
-
-    if (isReelPlaying) {
-      setIsReelPlaying(false);
-      sound.stopMusic();
-    } else {
-      setIsReelPlaying(true);
-      sound.startMusic();
     }
   };
 
@@ -326,7 +148,7 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="flex flex-col items-center text-center mb-6"
+        className="flex flex-col items-center text-center mb-4"
       >
         <span className="font-script text-3xl md:text-4xl text-rose-300 drop-shadow-[0_0_12px_rgba(244,63,94,0.4)]">
           ✨ A Special Video For You ✨
@@ -337,7 +159,77 @@ export const VideoStage: React.FC<VideoStageProps> = ({
         <p className="mt-1 text-xs md:text-sm text-slate-300/80 font-serif italic max-w-md mx-auto">
           Every moment with you is unforgettable. Enjoy this special video! 💖
         </p>
+
+        {/* Change Video Link / Customize button */}
+        <div className="flex items-center gap-2 mt-3">
+          <button
+            onClick={() => setIsEditingInline(prev => !prev)}
+            className="px-3.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-amber-500/30 text-amber-200 text-xs font-semibold backdrop-blur-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
+          >
+            <span>🔗</span>
+            <span>{videoSource.type !== 'empty' ? 'Change Video Link' : 'Paste Drive Link'}</span>
+          </button>
+
+          {onOpenCustomize && (
+            <button
+              onClick={onOpenCustomize}
+              className="px-3.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/15 text-slate-300 hover:text-white text-xs font-medium backdrop-blur-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <span>⚙️</span>
+              <span>All Settings</span>
+            </button>
+          )}
+        </div>
       </motion.div>
+
+      {/* Inline Quick Editor if toggled */}
+      <AnimatePresence>
+        {isEditingInline && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="w-full max-w-md mb-6 p-4 rounded-2xl bg-white/[0.04] border border-amber-400/40 backdrop-blur-md text-center"
+          >
+            <p className="text-xs text-amber-200 font-serif font-medium mb-2">
+              Paste your Google Drive link or video URL:
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder="https://drive.google.com/file/d/..."
+                className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/20 text-white text-xs font-mono focus:outline-none focus:border-amber-400"
+              />
+              <button
+                onClick={handleSaveUrl}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-bold text-xs rounded-xl active:scale-95 transition-all cursor-pointer shadow-md whitespace-nowrap"
+              >
+                Save & Load ✨
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 font-serif italic mt-2">
+              Make sure link sharing in Drive is set to "Anyone with the link can view".
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Saved Confirmation Banner */}
+      <AnimatePresence>
+        {savedNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-4 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-semibold flex items-center gap-1.5"
+          >
+            <span>✓</span>
+            <span>Saved permanently to server! All visitors now see your video!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mobile-Suitable Portrait Video Player Container (9:16 Ratio) */}
       <motion.div
@@ -442,153 +334,30 @@ export const VideoStage: React.FC<VideoStageProps> = ({
             )}
 
             {videoSource.type === 'empty' && (
-              <div
-                className="relative w-full h-full flex flex-col justify-between bg-black p-6 text-center select-none cursor-pointer overflow-hidden"
-                onClick={handleToggleReelPlay}
-              >
-                {/* Background ambient subtle glow */}
-                <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 via-transparent to-rose-500/10 pointer-events-none" />
-
-                {/* Top status bar in reel */}
-                <div className="relative z-20 flex items-center justify-between text-[11px] text-white/60 font-mono pt-4">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                    <span>Birthday Reel</span>
-                  </div>
-                  <span>{reelIndex + 1} / {REEL_SLIDES.length}</span>
+              <div className="p-6 text-center flex flex-col items-center justify-center h-full z-10 w-full max-w-[280px]">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-3xl mb-3 shadow-lg shadow-rose-500/30">
+                  🎬
                 </div>
-
-                {/* Center Content: Animated Typography Slide */}
-                <div className="relative z-20 flex-1 flex flex-col items-center justify-center px-2">
-                  <AnimatePresence mode="wait">
-                    {!isReelPlaying && !isReelFinished && (
-                      <motion.div
-                        key="intro"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        className="flex flex-col items-center justify-center text-center"
-                      >
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-amber-400 text-slate-950 flex items-center justify-center shadow-[0_0_35px_rgba(244,63,94,0.6)] border-2 border-white/50 mb-4 transition-transform hover:scale-105 active:scale-95">
-                          <span className="text-3xl ml-1">▶</span>
-                        </div>
-                        <h2 className="font-display font-bold text-xl sm:text-2xl text-white">
-                          Priyansh's Message
-                        </h2>
-                        <p className="font-serif italic text-xs text-amber-200/90 mt-1 max-w-[240px]">
-                          "Bro, it's been 132 magical days... and 9 years since 5th class"
-                        </p>
-                        <span className="mt-4 px-4 py-1.5 rounded-full bg-white/10 border border-amber-400/40 text-amber-300 text-xs font-semibold backdrop-blur-md animate-pulse">
-                          Tap to Play Video 💖
-                        </span>
-                      </motion.div>
-                    )}
-
-                    {isReelPlaying && !isReelFinished && (
-                      <motion.div
-                        key={reelIndex}
-                        initial={{ opacity: 0, scale: 0.85, y: 15 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 1.05, y: -15 }}
-                        transition={{ duration: 0.45, ease: 'easeOut' }}
-                        className="flex flex-col items-center justify-center text-center px-3"
-                      >
-                        <p className="font-display font-black text-2xl sm:text-3xl text-white leading-tight tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
-                          {REEL_SLIDES[reelIndex].prefix}{' '}
-                          <span className={`${REEL_SLIDES[reelIndex].highlightColor} drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]`}>
-                            {REEL_SLIDES[reelIndex].highlight}
-                          </span>{' '}
-                          {REEL_SLIDES[reelIndex].suffix}
-                        </p>
-                      </motion.div>
-                    )}
-
-                    {isReelFinished && (
-                      <motion.div
-                        key="finished"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex flex-col items-center justify-center text-center"
-                      >
-                        <span className="text-4xl mb-2">🎂💖</span>
-                        <h2 className="font-display font-extrabold text-2xl gold-gradient-text">
-                          Happy Birthday, Kajal!
-                        </h2>
-                        <p className="font-serif italic text-xs text-slate-300 mt-2 max-w-[240px]">
-                          "Tu aisi hi theek hai. Stay happy, stay crazy." ❤️
-                        </p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleReelPlay();
-                          }}
-                          className="mt-5 px-5 py-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 font-bold text-xs shadow-lg active:scale-95 cursor-pointer flex items-center gap-1.5"
-                        >
-                          <span>🔄</span>
-                          <span>Replay Reel</span>
-                        </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Reel Bottom Controls & Progress Bar */}
-                <div className="relative z-20 pb-2 flex flex-col gap-2.5" onClick={e => e.stopPropagation()}>
-                  {/* Segmented Timeline Progress Bar */}
-                  <div className="w-full flex items-center gap-1 h-1">
-                    {REEL_SLIDES.map((_, sIdx) => (
-                      <div
-                        key={sIdx}
-                        className={`flex-1 h-full rounded-full transition-all duration-300 ${
-                          sIdx < reelIndex
-                            ? 'bg-amber-400'
-                            : sIdx === reelIndex && isReelPlaying
-                            ? 'bg-amber-300 animate-pulse'
-                            : 'bg-white/20'
-                        }`}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Play / Pause & Attach Link Controls */}
-                  <div className="flex items-center justify-between text-xs px-1 text-slate-300">
-                    <button
-                      onClick={handleToggleReelPlay}
-                      className="text-white hover:text-amber-300 font-semibold cursor-pointer"
-                    >
-                      {isReelPlaying ? '⏸ Pause' : isReelFinished ? '🔄 Replay' : '▶ Play'}
-                    </button>
-                    <button
-                      onClick={() => setShowDriveInput(!showDriveInput)}
-                      className="text-[11px] text-amber-300/80 hover:text-amber-200 underline cursor-pointer"
-                    >
-                      {showDriveInput ? 'Hide Link Box' : '🔗 Attach Drive Video'}
-                    </button>
-                  </div>
-
-                  {/* Optional Drive link drawer inside player */}
-                  {showDriveInput && (
-                    <div className="mt-2 p-3 rounded-xl bg-black/80 border border-white/20 text-left">
-                      <label className="block text-[10px] text-amber-200 font-serif mb-1">
-                        Paste Google Drive link:
-                      </label>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          value={inputUrl}
-                          onChange={(e) => setInputUrl(e.target.value)}
-                          placeholder="https://drive.google.com/..."
-                          className="flex-1 px-2.5 py-1.5 text-[11px] rounded-lg bg-white/10 border border-white/20 text-white font-mono focus:outline-none"
-                        />
-                        <button
-                          onClick={handleSaveUrl}
-                          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] cursor-pointer"
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                <h3 className="font-display font-bold text-base text-amber-200">
+                  Birthday Video
+                </h3>
+                <p className="text-[11px] text-slate-300/80 font-serif italic mt-1.5 leading-relaxed">
+                  Paste your Google Drive link or video URL:
+                </p>
+                <div className="mt-4 w-full flex flex-col gap-2">
+                  <input
+                    type="text"
+                    value={inputUrl}
+                    onChange={(e) => setInputUrl(e.target.value)}
+                    placeholder="https://drive.google.com/file/d/..."
+                    className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-amber-400 font-mono text-center placeholder:text-slate-500"
+                  />
+                  <button
+                    onClick={handleSaveUrl}
+                    className="w-full py-2 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-bold text-xs rounded-xl active:scale-95 transition-all cursor-pointer shadow-md"
+                  >
+                    Save & Load Video ✨
+                  </button>
                 </div>
               </div>
             )}
